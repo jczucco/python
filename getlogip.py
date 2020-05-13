@@ -1,6 +1,17 @@
+#!/usr/bin/env python3
+
 import sys,ipaddress
 from elasticsearch import Elasticsearch
-client = Elasticsearch()
+from ssl import create_default_context
+
+context = create_default_context(cafile="/etc/elasticsearch/certs/ca.crt")
+client = Elasticsearch(
+    ['PUT_YOUR_ELASTICSERVER_IP_HERE'],
+    http_auth=('USERNAME', 'PASSWORD'),
+    scheme="https",
+    port=9200,
+    ssl_context=context,
+)
 
 #IP=ipaddress.ip_address(argv[1])
 try:
@@ -19,19 +30,18 @@ response = client.search(
     body={
       "query": {
         "match": {
-          "nginx.access.remote_ip": {
+          "source.address": {
             "query": IP
-          } 
-        } 
+          }
+        }
       }, "size": 100
-    } 
+    }
 )
-
 for hit in response['hits']['hits']:
     print('"%s" | "%s" | "%s" | "%s" | "%s"' % (
         hit['_source']['@timestamp'],
-        hit['_source']['nginx']['access']['remote_ip'],
-        hit['_source']['nginx']['access']['method'],
-        hit['_source']['nginx']['access']['url'],
-        hit['_source']['nginx']['access']['user_agent']['original']
+        hit['_source']['source']['address'],
+        hit['_source']['http']['request']['method'],
+        hit['_source']['url']['original'],
+        hit['_source']['user_agent']['original']
         ))
