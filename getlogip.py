@@ -25,6 +25,25 @@ except:
     print('Usage : %s  <IP ADDRESS>' % sys.argv[0])
     sys.exit(2)
 
+try:
+    result = client.count(
+        index="filebeat-*",
+        body={
+          "query": {
+          "match": {
+            "source.address": {
+              "query": IP
+            }
+          }
+        },
+      }
+    )
+except Exception:
+    raise AssertionError("Error connecting to elasticsearch")
+    sys.exit(2)
+
+num_docs=result['count']
+
 response = client.search(
     index="filebeat-*",
     body={
@@ -34,7 +53,7 @@ response = client.search(
             "query": IP
           }
         }
-      }, "size": 100
+      }, "size": num_docs
     }
 )
 for hit in response['hits']['hits']:
