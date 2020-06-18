@@ -1,5 +1,7 @@
 #!/usr/bin/env python3
 
+LIMIT_RESULTS=3000
+
 import sys,ipaddress
 from elasticsearch import Elasticsearch
 from ssl import create_default_context
@@ -42,7 +44,10 @@ except Exception:
     raise AssertionError("Error connecting to elasticsearch")
     sys.exit(2)
 
-num_docs=result['count']
+if ( result['count'] <= LIMIT_RESULTS ):
+    num_docs=result['count']
+else:
+    num_docs=LIMIT_RESULTS
 
 response = client.search(
     index="filebeat-*",
