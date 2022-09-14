@@ -40,7 +40,7 @@ try:
         },
       }
     )
-except Exception:
+except Except:
     raise AssertionError("Error connecting to elasticsearch")
     sys.exit(2)
 
