@@ -62,10 +62,13 @@ response = client.search(
     }
 )
 for hit in response['hits']['hits']:
-    print('"%s" | "%s" | "%s" | "%s" | "%s"' % (
-        hit['_source']['@timestamp'],
-        hit['_source']['source']['address'],
-        hit['_source']['http']['request']['method'],
-        hit['_source']['url']['original'],
-        hit['_source']['user_agent']['original']
+    try:
+        print('"%s" | "%s" | "%s" | "%s" | "%s"' % (
+            hit['_source']['@timestamp'],
+            hit['_source']['source']['address'],
+            hit['_source']['http']['request']['method'],
+            hit['_source']['url']['original'],
+            hit['_source']['user_agent']['original']
         ))
+    except KeyError:
+        pass
