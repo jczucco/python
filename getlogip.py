@@ -13,6 +13,7 @@ client = Elasticsearch(
     scheme="https",
     port=9200,
     ssl_context=context,
+    timeout=30,
 )
 
 #IP=ipaddress.ip_address(argv[1])
