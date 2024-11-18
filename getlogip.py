@@ -2,7 +2,7 @@
 
 LIMIT_RESULTS=3000
 
-import sys,ipaddress
+import sys,ipaddress,netaddr
 from elasticsearch import Elasticsearch
 from ssl import create_default_context
 
@@ -62,15 +62,33 @@ response = client.search(
       }, "size": num_docs
     }
 )
-for hit in response['hits']['hits']:
-    try:
-        print('"%s" | "%s" | "%s" | "%s" | "%s" | "%s"' % (
-            hit['_source']['@timestamp'],
-            hit['_source']['source']['address'],
-            hit['_source']['host']['ip'][0],
-            hit['_source']['http']['request']['method'],
-            hit['_source']['url']['original'],
-            hit['_source']['user_agent']['original']
-        ))
-    except KeyError:
-        pass
+if netaddr.valid_ipv4(IP) is True:
+    for hit in response['hits']['hits']:
+        try:
+            print('"%s" | "%s" | "%s" | "%s" | "%s" | "%s"' % (
+                hit['_source']['@timestamp'],
+                hit['_source']['source']['address'],
+                hit['_source']['host']['ip'][0],
+                hit['_source']['http']['request']['method'],
+                hit['_source']['url']['original'],
+                hit['_source']['user_agent']['original']
+            ))
+        except KeyError:
+            pass
+else:
+    if netaddr.valid_ipv6(IP) is True:
+        for hit in response['hits']['hits']:
+            try:
+                print('"%s" | "%s" | "%s" | "%s" | "%s" | "%s"' % (
+                    hit['_source']['@timestamp'],
+                    hit['_source']['source']['address'],
+                    hit['_source']['host']['ip'][1],
+                    hit['_source']['http']['request']['method'],
+                    hit['_source']['url']['original'],
+                    hit['_source']['user_agent']['original']
+                ))
+            except KeyError:
+                pass
+    else:
+        print('IP address invalid: %s' % P)
+        sys.exit(2)
