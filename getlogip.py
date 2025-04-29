@@ -32,6 +32,11 @@ try:
     result = client.count(
         index="filebeat-*",
         body={
+          "sort" : [ {
+            "@timestamp" : {
+              "order": "desc"
+            }
+          } ],
           "query": {
           "match": {
             "source.address": {
