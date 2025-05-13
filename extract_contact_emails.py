@@ -9,6 +9,7 @@ import re
 import whois
 import requests
 import sys
+import ipaddress
 
 def extract_emails_from_text(text):
     """Extract email addresses from a given text."""
@@ -49,7 +50,16 @@ def main():
         print("Usage: python extract_contact_emails.py <IP_ADDRESS>")
         sys.exit(1)
 
-    ip = sys.argv[1]
+    try:
+        ip = ipaddress.ip_address(sys.argv[1])
+        ip = sys.argv[1]
+    except ValueError:
+        print('IP address invalid: %s' % sys.argv[1])
+        sys.exit(2)
+    except:
+        print("Usage: python extract_contact_emails.py <IP_ADDRESS>")
+        sys.exit(2)
+    
     print(f"Fetching contact emails for IP: {ip}\n")
 
     whois_emails = get_whois_emails(ip)
