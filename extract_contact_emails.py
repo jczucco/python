@@ -3,13 +3,15 @@
 # Get all contact emails from a given IP by whois and rdap query
 #
 # dependencies:
-# pip install python-whois requests
+# pip install python-whois requests ipwhois
 
 import re
 import whois
 import requests
 import sys
 import ipaddress
+from ipwhois import IPWhois
+import json
 
 def extract_emails_from_text(text):
     """Extract email addresses from a given text."""
@@ -26,6 +28,16 @@ def get_whois_emails(ip):
         print(f"Error fetching WHOIS data: {e}")
     return []
 
+def get_ipwhois_emails(ip):
+    """Get contact emails from WHOIS data."""
+    try:
+        ipwhois_data = IPWhois(ip)
+        if ipwhois_data.lookup_whois():
+            return extract_emails_from_text(json.dumps(ipwhois_data.lookup_whois()))
+    except Exception as e:
+        print(f"Error fetching IPWHOIS data: {e}")
+    return []
+    
 def get_rdap_emails(ip):
     """Get contact emails from RDAP data."""
     rdap_url = f"https://rdap.arin.net/registry/ip/{ip}"
@@ -62,10 +74,12 @@ def main():
     
     print(f"Fetching contact emails for IP: {ip}\n")
 
-    whois_emails = get_whois_emails(ip)
+    #whois_emails = get_whois_emails(ip)
+    ipwhois_emails = get_ipwhois_emails(ip)
     rdap_emails = get_rdap_emails(ip)
 
-    all_emails = set(whois_emails + rdap_emails)
+    #all_emails = set(whois_emails + rdap_emails)
+    all_emails = set(ipwhois_emails + rdap_emails)
 
     if all_emails:
         print("Contact Emails Found:")
