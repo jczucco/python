@@ -1,92 +1,92 @@
 #!/usr/bin/env python3
-
-# Get all contact emails from a given IP by whois and rdap query
-#
-# dependencies:
-# pip install python-whois requests ipwhois
-
-import re
-import whois
-import requests
 import sys
 import ipaddress
+import re
 from ipwhois import IPWhois
-import json
+from ipwhois.exceptions import IPDefinedError, ASNLookupError
 
-def extract_emails_from_text(text):
-    """Extract email addresses from a given text."""
-    email_pattern = r'[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}'
-    return re.findall(email_pattern, text)
+# Regex para validação de e-mail (mais segura)
+EMAIL_REGEX = r'[a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\.[a-zA-Z0-9-.]+'
 
-def get_whois_emails(ip):
-    """Get contact emails from WHOIS data."""
-    try:
-        whois_data = whois.whois(ip)
-        if whois_data.text:
-            return extract_emails_from_text(whois_data.text)
-    except Exception as e:
-        print(f"Error fetching WHOIS data: {e}")
-    return []
-
-def get_ipwhois_emails(ip):
-    """Get contact emails from WHOIS data."""
-    try:
-        ipwhois_data = IPWhois(ip)
-        if ipwhois_data.lookup_whois():
-            return extract_emails_from_text(json.dumps(ipwhois_data.lookup_whois()))
-    except Exception as e:
-        print(f"Error fetching IPWHOIS data: {e}")
-    return []
+def extract_emails_recursively(entity_data):
+    """Percorre recursivamente as entidades, tratando se forem lista ou dicionário."""
+    emails = set()
     
-def get_rdap_emails(ip):
-    """Get contact emails from RDAP data."""
-    rdap_url = f"https://rdap.arin.net/registry/ip/{ip}"
-    try:
-        response = requests.get(rdap_url, timeout=10)
-        if response.status_code == 200:
-            rdap_data = response.json()
-            emails = []
-            if "entities" in rdap_data:
-                for entity in rdap_data["entities"]:
-                    if "vcardArray" in entity:
-                        for vcard in entity["vcardArray"][1]:
-                            if vcard[0] == "email":
-                                emails.append(vcard[3])
-            return emails
-    except Exception as e:
-        print(f"Error fetching RDAP data: {e}")
-    return []
-
-def main():
-    if len(sys.argv) != 2:
-        print("Usage: python extract_contact_emails.py <IP_ADDRESS>")
-        sys.exit(1)
-
-    try:
-        ip = ipaddress.ip_address(sys.argv[1])
-        ip = sys.argv[1]
-    except ValueError:
-        print('IP address invalid: %s' % sys.argv[1])
-        sys.exit(2)
-    except:
-        print("Usage: python extract_contact_emails.py <IP_ADDRESS>")
-        sys.exit(2)
-    
-    print(f"Fetching contact emails for IP: {ip}\n")
-
-    #whois_emails = get_whois_emails(ip)
-    ipwhois_emails = get_ipwhois_emails(ip)
-    rdap_emails = get_rdap_emails(ip)
-
-    #all_emails = set(whois_emails + rdap_emails)
-    all_emails = set(ipwhois_emails + rdap_emails)
-
-    if all_emails:
-        print("Contact Emails Found:")
-        for email in all_emails:
-            print(email)
+    # Se for uma lista, iteramos pelos itens
+    if isinstance(entity_data, list):
+        items = entity_data
+    # Se for um dicionário, iteramos pelos valores
+    elif isinstance(entity_data, dict):
+        items = entity_data.values()
     else:
-        print("No contact emails found.")
+        return emails
+
+    for entity in items:
+        # Se for apenas uma string (ID da entidade), ignoramos e seguimos
+        if not isinstance(entity, dict):
+            continue
+
+        # 1. Tenta pegar do vcard (formato padrão RDAP)
+        vcard = entity.get('vcard', [])
+        for entry in vcard:
+            # entry costuma ser ['email', {}, 'text', 'email@addr.com']
+            if isinstance(entry, list) and entry[0] == 'email':
+                emails.add(entry[3].lower())
+
+        # 2. Tenta pegar do campo 'emails' direto (alguns RIRs facilitam isso)
+        direct_emails = entity.get('emails', [])
+        if isinstance(direct_emails, list):
+            for e in direct_emails:
+                emails.add(e.lower())
+        elif isinstance(direct_emails, str):
+            emails.add(direct_emails.lower())
+
+        # 3. Mergulha nas sub-entidades (Recursividade)
+        if 'entities' in entity:
+            emails.update(extract_emails_recursively(entity['entities']))
+            
+    return emails
+
+def get_ip_contacts(ip_str):
+    try:
+        # Validação do IP
+        ipaddress.ip_address(ip_str)
+        
+        print(f"[*] Analisando IP: {ip_str}...")
+        obj = IPWhois(ip_str)
+        
+        # Consulta RDAP (mais moderno e estruturado que o WHOIS)
+        # O parâmetro depth controla o quão profundo ele vai nas entidades
+        results = obj.lookup_rdap(depth=3)
+        
+        found_emails = extract_emails_recursively(results.get('entities', {}))
+        
+        # Fallback: Se não achou nada no RDAP, tenta busca bruta no texto do objeto
+        if not found_emails:
+            raw_text = str(results)
+            found_emails.update(re.findall(EMAIL_REGEX, raw_text))
+
+        return sorted(list(found_emails))
+
+    except IPDefinedError:
+        return ["Erro: IP privado ou reservado."]
+    except ASNLookupError:
+        return ["Erro: Não foi possível localizar o ASN deste IP."]
+    except Exception as e:
+        return [f"Erro inesperado: {str(e)}"]
 
 if __name__ == "__main__":
-    main()
+    if len(sys.argv) < 2:
+        print(f"Uso: {sys.argv[0]} <IP_ADDRESS>")
+        sys.exit(1)
+
+    ip_input = sys.argv[1]
+    contacts = get_ip_contacts(ip_input)
+
+    if contacts:
+        print("\n--- Contatos Encontrados ---")
+        for email in contacts:
+            # Filtro simples para remover e-mails genéricos ou falsos se necessário
+            print(f"[+] {email}")
+    else:
+        print("[-] Nenhum e-mail encontrado.")
